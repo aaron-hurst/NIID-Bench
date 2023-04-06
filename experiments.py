@@ -838,6 +838,7 @@ if __name__ == '__main__':
 
     # test_dl = data.DataLoader(dataset=test_ds_global, batch_size=32, shuffle=False)
 
+    # I think this part serves only to add noise
     train_all_in_list = []
     test_all_in_list = []
     if args.noise > 0:
@@ -864,10 +865,12 @@ if __name__ == '__main__':
 
     if args.alg == 'fedavg':
         logger.info("Initializing nets")
+        # To start with, "nets" is dictionary of size n_clients with None values
         nets, local_model_meta_data, layer_type = init_nets(args.net_config, args.dropout_p, args.n_parties, args)
         global_models, global_model_meta_data, global_layer_type = init_nets(args.net_config, 0, 1, args)
         global_model = global_models[0]
 
+        # Initialise client models
         global_para = global_model.state_dict()
         if args.is_same_initial:
             for net_id, net in nets.items():
@@ -876,10 +879,12 @@ if __name__ == '__main__':
         for round in range(args.comm_round):
             logger.info("in comm round:" + str(round))
 
+            # Randomly select a subset of the clients each round
             arr = np.arange(args.n_parties)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_parties * args.sample)]
 
+            # Update model for selected clients
             global_para = global_model.state_dict()
             if round == 0:
                 if args.is_same_initial:
@@ -914,6 +919,8 @@ if __name__ == '__main__':
             test_acc, conf_matrix = compute_accuracy(global_model, test_dl_global, get_confusion_matrix=True, device=device)
 
 
+            print('>> Global Model Train accuracy: %f' % train_acc)
+            print('>> Global Model Test accuracy: %f' % test_acc)
             logger.info('>> Global Model Train accuracy: %f' % train_acc)
             logger.info('>> Global Model Test accuracy: %f' % test_acc)
 
