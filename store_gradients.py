@@ -44,7 +44,7 @@ PARAMS = {
     "dropout_p": 0,  # dropout probability
     "data_dir": "./data/",  # where to store downloaded datasets
     "model_dir": "./models/",  # where to store models
-    "device": "cpu",
+    "device": "cuda:0",
     "optimiser": "sgd",
 }
 
@@ -280,8 +280,12 @@ if __name__ == "__main__":
     logger.info(f"Device: {device}")
     logger.info("#" * 100)
 
+    # Check for GPU
+    if not torch.cuda.is_available():
+        PARAMS["device"] = "cpu"
+
     # Export parameters
-    with open(os.path.join(out_dir, "arguments.json"), "w") as f:
+    with open(os.path.join(out_dir, "parameters.json"), "w") as f:
         json.dump(PARAMS, f, indent=4)
 
     # Setup additional directories
