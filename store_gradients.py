@@ -24,7 +24,7 @@ RESULTS_DIR = os.path.join(
     # "04 Research",
     # "results",
     # "federated_learning",
-    "gradients"
+    "results"
 )
 
 PARAMS = {
@@ -111,7 +111,16 @@ def init_nets(dataset, model, n_parties, dropout_p):
 
 
 def train_net(
-    net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"
+    net,
+    net_id,
+    train_dataloader,
+    test_dataloader,
+    epochs,
+    lr,
+    args_optimizer,
+    out_dir,
+    comm_round,
+    device="cpu",
 ):
     # Compute and report pre-training accuracy
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -161,13 +170,6 @@ def train_net(
                 loss = criterion(out, target)  # evaluate loss
                 loss.backward()  # backprop, running this makes the gradients available
 
-                # TODO
-                # Extract and archive model parameter gradients
-                # os.makedirs(os.path.join("gradients", ""))
-                # with open("")
-                # for param_name, param in zip(net.state_dict(), net.parameters()):
-                #     print(f"{param_name:20s}:", param.grad.flatten().size())
-
                 optimizer.step()  # updates the model
                 cnt += 1
                 epoch_loss_collector.append(loss.item())
@@ -175,9 +177,28 @@ def train_net(
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
         logger.info(f"Epoch: {epoch} loss: {epoch_loss:.3f}")
 
+    # Export model weights and weight gradients
+    out_dir_gradients = os.path.join(
+        out_dir,
+        "gradients",
+        f"round_{comm_round:04d}",
+        f"client_{net_id:02d}",
+    )
+    out_dir_weights = os.path.join(
+        out_dir,
+        "weights",
+        f"round_{comm_round:04d}",
+        f"client_{net_id:02d}",
+    )
+    os.makedirs(out_dir_weights, exist_ok=True)
+    os.makedirs(out_dir_gradients, exist_ok=True)
+    for param_name, param in zip(net.state_dict(), net.parameters()):
+        torch.save(param, os.path.join(out_dir_weights, param_name + ".pt"))
+        torch.save(param.grad, os.path.join(out_dir_gradients, param_name + ".pt"))
+
+    # Compute and report accuracy
     train_acc = compute_accuracy(net, train_dataloader, device=device)
     test_acc = compute_accuracy(net, test_dataloader, device=device)
-
     logger.info(f">> Post-training training accuracy: {train_acc:.4f}")
     logger.info(f">> Post-training test accuracy: {test_acc:.4f}")
 
@@ -194,6 +215,8 @@ def local_train_net(
     data_dir,
     batch_size,
     n_epoch,
+    out_dir,
+    comm_round,
     test_dl=None,
     device="cpu",
 ):
@@ -213,11 +236,14 @@ def local_train_net(
         # Perform training
         trainacc, test_acc = train_net(
             net,
+            net_id,
             train_dl_local,
             test_dl,
             n_epoch,
             PARAMS["lr"],
             PARAMS["optimiser"],
+            out_dir,
+            comm_round,
             device=device,
         )
         logger.info(f"Net {net_id} final test accuracy {test_acc:.4f}")
@@ -255,8 +281,8 @@ if __name__ == "__main__":
     logger.info("#" * 100)
 
     # Export parameters
-    with open(os.path.join(out_dir, "arguments"), "w") as f:
-        json.dump(str(PARAMS), f)
+    with open(os.path.join(out_dir, "arguments.json"), "w") as f:
+        json.dump(PARAMS, f, indent=4)
 
     # Setup additional directories
     os.makedirs(PARAMS["model_dir"], exist_ok=True)
@@ -299,7 +325,17 @@ if __name__ == "__main__":
 
     # Run Federated Learning
     for round in range(PARAMS["comm_rounds"]):
-        logger.info(f"Starting communication round: {round}:")
+        logger.info(f"Starting communication round: {round}")
+
+        # Store current global model weights (start of communication round)
+        out_dir_global_model = os.path.join(
+            out_dir,
+            "weights",
+            f"round_{round:04d}",
+        )
+        os.makedirs(out_dir_global_model, exist_ok=True)
+        for param_name, param in zip(global_para, global_model.parameters()):
+            torch.save(param, os.path.join(out_dir_global_model, param_name + ".pt"))
 
         # Randomly select a subset of clients
         arr = np.arange(PARAMS["n_clients"])
@@ -320,6 +356,8 @@ if __name__ == "__main__":
             PARAMS["data_dir"],
             PARAMS["batch_size"],
             PARAMS["epochs"],
+            out_dir,
+            round,
             test_dl=test_dl_global,
             device=device,
         )
