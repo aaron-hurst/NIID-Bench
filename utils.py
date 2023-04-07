@@ -10,6 +10,7 @@ import random
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader
 import copy
+import json
 
 from model import *
 from datasets import MNIST_truncated, CIFAR10_truncated, CIFAR100_truncated, ImageFolder_custom, SVHN_custom, FashionMNIST_truncated, CustomTensorDataset, CelebA_custom, FEMNIST, Generated, genData
@@ -169,10 +170,10 @@ def record_net_data_stats(y_train, net_dataidx_map, logdir):
 
     for net_i, dataidx in net_dataidx_map.items():
         unq, unq_cnt = np.unique(y_train[dataidx], return_counts=True)
-        tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
-        net_cls_counts[net_i] = tmp
+        tmp = {int(unq[i]): int(unq_cnt[i]) for i in range(len(unq))}
+        net_cls_counts[int(net_i)] = tmp
 
-    logger.info('Data statistics: %s' % str(net_cls_counts))
+    logger.info('Distribution of classes across clients: \n%s' % json.dumps(net_cls_counts, indent=4))
 
     return net_cls_counts
 

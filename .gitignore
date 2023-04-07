@@ -2,6 +2,7 @@
 .vscode/
 data/
 logs/
+gradients/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

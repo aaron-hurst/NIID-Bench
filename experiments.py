@@ -150,12 +150,13 @@ def init_nets(net_configs, dropout_p, n_parties, args):
 def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
     logger.info('Training network %s' % str(net_id))
 
+    # Compute and report pre-training accuracy
     train_acc = compute_accuracy(net, train_dataloader, device=device)
     test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
     logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
     logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
 
+    # Initialise optimiser
     if args_optimizer == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg)
     elif args_optimizer == 'amsgrad':
@@ -177,18 +178,22 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
         epoch_loss_collector = []
         for tmp in train_dataloader:
             for batch_idx, (x, target) in enumerate(tmp):
-                x, target = x.to(device), target.to(device)
+                x, target = x.to(device), target.to(device)  # move data tensor to GPU
 
-                optimizer.zero_grad()
-                x.requires_grad = True
-                target.requires_grad = False
-                target = target.long()
+                optimizer.zero_grad()  # sets all gradients in the optimiser to zero
+                x.requires_grad = True  # gradients will be computed (not necessarily available in grad attribute)
+                target.requires_grad = False  # gradients not computed
+                target = target.long()  # convert to long int
 
-                out = net(x)
-                loss = criterion(out, target)
+                out = net(x)  # uses nn.Module.__call__, basically runs "forward", but returns something different?
+                loss = criterion(out, target)  # evaluate loss, what is the data type of "loss"? Tensor?
+                # What is the loss then? Is it evaluated for each weight in the model?
 
-                loss.backward()
-                optimizer.step()
+                loss.backward()  # running this makes the gradientts available in x?
+
+
+
+                optimizer.step()  # updates the model
 
                 cnt += 1
                 epoch_loss_collector.append(loss.item())
@@ -897,10 +902,9 @@ if __name__ == '__main__':
             local_train_net(nets, selected, args, net_dataidx_map, test_dl = test_dl_global, device=device)
             # local_train_net(nets, args, net_dataidx_map, local_split=False, device=device)
 
-            # update global model
+            # Update global model
             total_data_points = sum([len(net_dataidx_map[r]) for r in selected])
             fed_avg_freqs = [len(net_dataidx_map[r]) / total_data_points for r in selected]
-
             for idx in range(len(selected)):
                 net_para = nets[selected[idx]].cpu().state_dict()
                 if idx == 0:
