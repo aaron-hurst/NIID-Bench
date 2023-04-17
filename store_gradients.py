@@ -14,18 +14,7 @@ from resnetcifar import ResNet50_cifar10
 from utils import partition_data, get_dataloader, compute_accuracy
 from vggmodel import vgg11, vgg16
 
-RESULTS_DIR = os.path.join(
-    # "C:",
-    # os.sep,
-    # "Users",
-    # "au686379",
-    # "OneDrive - Aarhus Universitet",
-    # "Documents",
-    # "04 Research",
-    # "results",
-    # "federated_learning",
-    "results"
-)
+RESULTS_DIR = os.path.join("results")
 
 PARAMS = {
     "algorithm": "fedavg",
@@ -195,6 +184,10 @@ def train_net(
     for param_name, param in zip(net.state_dict(), net.parameters()):
         torch.save(param, os.path.join(out_dir_weights, param_name + ".pt"))
         torch.save(param.grad, os.path.join(out_dir_gradients, param_name + ".pt"))
+        param_np = param.cpu().detach().numpy()
+        np.save(os.path.join(out_dir_weights, param_name + ".npy"), param_np)
+        param_grad_np = param.cpu().detach().numpy()
+        np.save(os.path.join(out_dir_gradients, param_name + ".npy"), param_grad_np)
 
     # Compute and report accuracy
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -261,7 +254,8 @@ if __name__ == "__main__":
     # Configure logging
     ts = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     out_dir = os.path.join(
-        RESULTS_DIR, PARAMS["algorithm"], PARAMS["model"], PARAMS["dataset"], ts
+        RESULTS_DIR,
+        f"{PARAMS['algorithm']}-{PARAMS['dataset']}-{PARAMS['model'].replace('-', '_')}-{ts}",
     )
     os.makedirs(out_dir, exist_ok=True)
     for handler in logging.root.handlers[:]:
@@ -311,7 +305,6 @@ if __name__ == "__main__":
     train_dl_global, test_dl_global, train_ds_global, test_ds_global = get_dataloader(
         PARAMS["dataset"], PARAMS["data_dir"], PARAMS["batch_size"], 32
     )  # 32 is the text batch size
-    print("len train_dl_global:", len(train_ds_global))
     data_size = len(test_ds_global)
 
     # Initialise client and server models
@@ -340,6 +333,8 @@ if __name__ == "__main__":
         os.makedirs(out_dir_global_model, exist_ok=True)
         for param_name, param in zip(global_para, global_model.parameters()):
             torch.save(param, os.path.join(out_dir_global_model, param_name + ".pt"))
+            param_np = param.cpu().detach().numpy()  # https://stackoverflow.com/a/54585679
+            np.save(os.path.join(out_dir_global_model, param_name + ".npy"), param_np)
 
         # Randomly select a subset of clients
         arr = np.arange(PARAMS["n_clients"])
