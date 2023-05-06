@@ -186,7 +186,7 @@ def train_net(
         torch.save(param.grad, os.path.join(out_dir_gradients, param_name + ".pt"))
         param_np = param.cpu().detach().numpy()
         np.save(os.path.join(out_dir_weights, param_name + ".npy"), param_np)
-        param_grad_np = param.cpu().detach().numpy()
+        param_grad_np = param.grad.cpu().detach().numpy()
         np.save(os.path.join(out_dir_gradients, param_name + ".npy"), param_grad_np)
 
     # Compute and report accuracy
@@ -301,11 +301,9 @@ if __name__ == "__main__":
         PARAMS["partition"],
         PARAMS["n_clients"],
     )
-    n_classes = len(np.unique(y_train))
-    train_dl_global, test_dl_global, train_ds_global, test_ds_global = get_dataloader(
+    train_dl_global, test_dl_global, _, _ = get_dataloader(
         PARAMS["dataset"], PARAMS["data_dir"], PARAMS["batch_size"], 32
     )  # 32 is the text batch size
-    data_size = len(test_ds_global)
 
     # Initialise client and server models
     logger.info("Initializing nets")
